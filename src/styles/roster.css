@@ -1,0 +1,389 @@
+/* ---------------- 名册 ---------------- */
+
+.roster {
+  border-bottom: 1px solid var(--line-strong);
+}
+
+.roster-head,
+.roster-row {
+  display: grid;
+  grid-template-columns: 54px minmax(0, 1fr) 112px 136px 92px 196px;
+  gap: 12px;
+  align-items: center;
+}
+
+.roster-head {
+  padding: 4px 8px 7px;
+  border-bottom: 1.5px solid var(--gold);
+  font-size: 10.5px;
+  color: var(--ink-3);
+  letter-spacing: 0.18em;
+}
+
+.roster-row {
+  position: relative;
+  min-height: 64px;
+  padding: 9px 8px;
+  border-bottom: 1px solid var(--line);
+  transition: background 0.15s;
+}
+
+.roster-row:hover {
+  background: var(--row-hover);
+  z-index: 2;
+}
+
+.roster-row.selected {
+  background: var(--row-selected);
+}
+
+.roster-row.selected::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--danger-text);
+}
+
+/* 序号即勾选印章 */
+.col-index {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.index-seal {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.index-box {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line-strong);
+  border-radius: 1px;
+  background: transparent;
+  color: var(--ink-2);
+  font-family: var(--font-serif);
+  font-size: 13px;
+  line-height: 1;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.index-seal:hover .index-box {
+  border-color: var(--gold);
+  color: var(--gold-bright);
+}
+
+.index-seal input:checked + .index-box {
+  background: var(--vermilion);
+  border-color: var(--vermilion);
+  color: #f7ebd5;
+}
+
+.index-seal input:focus-visible + .index-box {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.index-box.static {
+  border-color: var(--line);
+  color: var(--ink-3);
+}
+
+/* 名称 */
+.col-name {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.name-mark {
+  width: 4px;
+  height: 32px;
+  flex: none;
+  opacity: 0.3;
+  filter: saturate(0.45);
+  transition: opacity 0.15s, filter 0.15s;
+}
+
+.name-mark.active {
+  opacity: 1;
+  filter: none;
+}
+
+.name-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.name-text strong {
+  display: block;
+  font-family: var(--font-serif);
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--ink);
+  text-align: left;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.name-text small {
+  display: block;
+  margin-top: 2px;
+  font-size: 11.5px;
+  color: var(--ink-3);
+  text-align: left;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.col-group {
+  font-size: 12px;
+  color: var(--ink-2);
+  letter-spacing: 0.04em;
+  text-align: left;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+/* 状态印章 */
+.col-status {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.status-seal {
+  width: 20px;
+  height: 20px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line-strong);
+  border-radius: 1px;
+  color: var(--ink-3);
+  font-family: var(--font-serif);
+  font-size: 10.5px;
+  line-height: 1;
+}
+
+.status-seal.run {
+  background: var(--vermilion);
+  border-color: var(--vermilion);
+  color: #f7ebd5;
+  box-shadow: var(--run-glow);
+}
+
+.status-seal.hung {
+  border-color: var(--hung-color);
+  color: var(--hung-color);
+}
+
+.status-text {
+  font-size: 12px;
+  color: var(--ink-2);
+  text-align: left;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.roster-row .status-seal.run + .status-text {
+  color: var(--danger-text);
+}
+
+.col-mem {
+  font-size: 11.5px;
+  color: var(--ink-2);
+  text-align: right;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 行尾操作 */
+.col-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 1px;
+}
+
+.roster-head .head-actions {
+  color: var(--ink-3);
+  font-size: inherit;
+  letter-spacing: inherit;
+}
+
+.row-action {
+  min-height: 24px;
+  padding: 3px 7px;
+  background: none;
+  border: none;
+  border-radius: 1px;
+  font-size: 11.5px;
+  line-height: 1.35;
+  color: var(--ink-2);
+  cursor: pointer;
+  text-align: center;
+  white-space: normal;
+}
+
+.row-action:hover {
+  background: rgba(194, 160, 96, 0.1);
+  color: var(--gold-bright);
+}
+
+.row-action.primary-text {
+  color: var(--gold-bright);
+  font-weight: 600;
+}
+
+.row-action.primary-text:hover {
+  color: var(--ink);
+  background: var(--indigo-soft);
+}
+
+.row-action.danger {
+  color: var(--ink-3);
+}
+
+.row-action.danger:hover {
+  background: rgba(170, 45, 38, 0.18);
+  color: var(--danger-text);
+}
+
+.row-action:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+/* 工具安装进度 */
+.row-progress {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: 2px;
+  height: 2px;
+  background: var(--paper-3);
+}
+
+.row-progress i {
+  display: block;
+  height: 100%;
+  background: var(--gold);
+  transition: width 0.2s;
+}
+
+/* ---------------- 批量选择条 ---------------- */
+
+.selection-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin: 12px 0 0;
+  padding: 7px 10px;
+  background: var(--indigo-soft);
+  border-left: 3px solid var(--gold);
+  font-size: 12.5px;
+}
+
+.selection-count {
+  margin-right: 6px;
+  color: var(--gold-bright);
+  font-family: var(--font-serif);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+}
+
+/* ---------------- 空状态 ---------------- */
+
+.empty {
+  margin-top: 16px;
+  padding: var(--empty-padding);
+  text-align: center;
+  border: var(--empty-border);
+  background-color: var(--empty-bg);
+  background-image: var(--empty-image);
+  background-size: var(--empty-size);
+  background-repeat: var(--empty-repeat);
+}
+
+.empty-seal {
+  width: 62px;
+  height: 62px;
+  margin: 0 auto 16px;
+  display: grid;
+  place-items: center;
+  border: 2px solid var(--gold);
+  color: var(--gold);
+  font-family: var(--font-serif);
+  font-size: 24px;
+  letter-spacing: 0.08em;
+  opacity: 0.85;
+  transform: rotate(-2deg);
+  box-shadow: var(--seal-glow);
+}
+
+.empty h3 {
+  margin: 0 0 6px;
+  font-family: var(--font-serif);
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  color: var(--gold-bright);
+}
+
+.empty p {
+  max-width: 430px;
+  margin: 0 auto 20px;
+  font-size: 12.5px;
+  line-height: 1.8;
+  color: var(--ink-3);
+}
+
+.empty-actions {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+}
+
+/* ---------------- 工具 / 链接名册 ---------------- */
+
+.tools-roster .roster-head,
+.tools-roster .roster-row {
+  grid-template-columns: 54px minmax(0, 1fr) 84px 124px 84px 206px;
+}
+
+.links-roster .roster-head,
+.links-roster .roster-row {
+  grid-template-columns: 54px minmax(0, 1fr) 120px 150px;
+}
+
+/* ---------------- 窄窗口 ---------------- */
+
+@media (max-width: 1020px) {
+  .roster-head,
+  .roster-row {
+    grid-template-columns: 48px minmax(0, 1fr) 128px 86px 196px;
+  }
+
+  .col-group {
+    display: none;
+  }
+
+  .links-roster .roster-head,
+  .links-roster .roster-row {
+    grid-template-columns: 48px minmax(0, 1fr) 140px;
+  }
+}
