@@ -16,7 +16,7 @@ PRODUCT = CONF["productName"]
 BINARY = CONF.get("mainBinaryName", "yys-ledger")
 EXE = ROOT / "src-tauri" / "target" / "release" / f"{BINARY}.exe"
 
-DATA_NOTE = f"""这个文件夹存放{PRODUCT}的配置、日志和窗口状态。
+DATA_NOTE = """这个文件夹存放百鬼帐的配置、日志和窗口状态。
 
 - config.json          名册、标签、工具与链接
 - runtime.json         运行中的游戏进程
@@ -30,9 +30,9 @@ DATA_NOTE = f"""这个文件夹存放{PRODUCT}的配置、日志和窗口状态�
 TOOLS_NOTE = """下载安装的便携工具会放在这里，每个工具一个子目录。
 """
 
-README = """{product} v{version} 便携版
+README = """百鬼帐 v{version} 便携版
 
-1. 双击「{product}.exe」即可运行，不需要安装。
+1. 双击「{binary}.exe」即可运行，不需要安装。
 2. 配置、日志、窗口状态都写在同目录的 data 文件夹里。
 3. 想换电脑或放 U 盘，直接拷贝整个文件夹。
 4. 第一次启动会引导你确认游戏客户端目录。
@@ -41,7 +41,7 @@ README = """{product} v{version} 便携版
 - 需要一个可写的目录（不要放在 Program Files 或只读盘）。
 - 依赖系统的 Microsoft Edge WebView2 运行时；Windows 10/11 一般已自带，
   若打不开，请先从微软官网安装 WebView2 Runtime。
-- 不要用桌面快捷方式（Launch.exe）启动游戏，它会把{product}管理的实例全部结束。
+- 不要用桌面快捷方式（Launch.exe）启动游戏，它会把百鬼帐管理的实例全部结束。
 """
 
 
@@ -51,20 +51,20 @@ def main() -> None:
     version = CONF["version"]
 
     release_dir = PROJECT / "release"
-    target = release_dir / f"{PRODUCT}-{version}-便携版"
+    target = release_dir / BINARY
     if target.exists():
         shutil.rmtree(target)
     (target / "data").mkdir(parents=True)
     (target / "tools").mkdir(parents=True)
 
-    shutil.copy2(EXE, target / f"{PRODUCT}.exe")
+    shutil.copy2(EXE, target / f"{BINARY}.exe")
     (target / "data" / "说明.txt").write_text(DATA_NOTE, encoding="utf-8")
     (target / "tools" / "说明.txt").write_text(TOOLS_NOTE, encoding="utf-8")
     (target / "使用说明.txt").write_text(
-        README.format(version=version, product=PRODUCT), encoding="utf-8"
+        README.format(version=version, binary=BINARY), encoding="utf-8"
     )
 
-    archive = release_dir / f"{PRODUCT}-{version}-便携版.zip"
+    archive = release_dir / f"{BINARY}-{version}-portable.zip"
     if archive.exists():
         archive.unlink()
     with zipfile.ZipFile(archive, "w", zipfile.ZIP_DEFLATED) as bundle:
