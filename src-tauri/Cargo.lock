@@ -5459,6 +5459,7 @@ dependencies = [
  "tauri-build",
  "tauri-plugin-dialog",
  "tauri-plugin-opener",
+ "windows",
  "windows-sys 0.59.0",
  "zip",
 ]

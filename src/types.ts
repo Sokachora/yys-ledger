@@ -10,6 +10,8 @@ export interface Instance {
   note: string;
   args: string[];
   autoRestart: boolean;
+  volume: number;
+  muted: boolean;
 }
 
 export interface LinkItem {

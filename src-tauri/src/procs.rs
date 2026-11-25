@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use windows_sys::Win32::Foundation::{CloseHandle, FILETIME, INVALID_HANDLE_VALUE};
 use windows_sys::Win32::System::Diagnostics::ToolHelp::{
     CreateToolhelp32Snapshot, Process32FirstW, Process32NextW, PROCESSENTRY32W,
@@ -60,6 +60,27 @@ pub fn working_set(pid: u32) -> u64 {
             0
         }
     }
+}
+
+/// 进程树的 PID 列表（含根进程），用于把音频会话对到实例上。
+pub fn tree_pids(procs: &[ProcInfo], root_pid: u32) -> Vec<u32> {
+    let mut children: HashMap<u32, Vec<u32>> = HashMap::new();
+    for process in procs {
+        children.entry(process.ppid).or_default().push(process.pid);
+    }
+    let mut out = Vec::new();
+    let mut stack = vec![root_pid];
+    let mut seen = HashSet::new();
+    while let Some(pid) = stack.pop() {
+        if !seen.insert(pid) {
+            continue;
+        }
+        out.push(pid);
+        if let Some(kids) = children.get(&pid) {
+            stack.extend(kids.iter().copied());
+        }
+    }
+    out
 }
 
 /// 进程树总内存（含子进程），单位字节。

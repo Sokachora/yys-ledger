@@ -18,6 +18,15 @@ pub struct Instance {
     pub args: Vec<String>,
     #[serde(default)]
     pub auto_restart: bool,
+    /// 单个实例的音量（0-100）。
+    #[serde(default = "default_volume")]
+    pub volume: u32,
+    #[serde(default)]
+    pub muted: bool,
+}
+
+fn default_volume() -> u32 {
+    100
 }
 
 fn default_color() -> String {

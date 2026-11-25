@@ -3,7 +3,16 @@ import ConfirmDialog from "../components/ConfirmDialog";
 import ContextMenu, { type MenuAction } from "../components/ContextMenu";
 import Modal from "../components/Modal";
 import Truncate from "../components/Truncate";
-import { IconGrid, IconPlay, IconPlus, IconSearch, IconStop, IconTrash } from "../components/icons";
+import VolumeControl from "../components/VolumeControl";
+import {
+  IconGrid,
+  IconPlay,
+  IconPlus,
+  IconSearch,
+  IconStop,
+  IconTrash,
+  IconVolumeOff,
+} from "../components/icons";
 import { PALETTE, api, sleep } from "../lib/api";
 import { cnNumber } from "../lib/format";
 import type { AppConfig, Instance, RuntimeSnapshot } from "../types";
@@ -30,6 +39,8 @@ const EMPTY_INSTANCE: Instance = {
   note: "",
   args: [],
   autoRestart: false,
+  volume: 100,
+  muted: false,
 };
 
 interface ConfirmState {
@@ -59,6 +70,9 @@ export default function InstancesPage({
   const [confirmState, setConfirmState] = useState<ConfirmState | null>(null);
   const [search, setSearch] = useState("");
   const [activeTag, setActiveTag] = useState("");
+  const [volumeDialog, setVolumeDialog] = useState(false);
+  const [batchVolume, setBatchVolume] = useState(100);
+  const [batchMuted, setBatchMuted] = useState(false);
   const [menu, setMenu] = useState<{ x: number; y: number; instance: Instance } | null>(null);
   const lastSignal = useRef(createSignal);
 
@@ -72,6 +86,8 @@ export default function InstancesPage({
   const runtimeOf = (id: string) => snapshot?.instances.find((item) => item.id === id);
   const runningCount = snapshot?.instances.filter((item) => item.running).length ?? 0;
   const totalMemory = snapshot?.instances.reduce((sum, item) => sum + item.memoryMb, 0) ?? 0;
+  const allMuted =
+    config.instances.length > 0 && config.instances.every((item) => item.muted);
 
   const validSelected = useMemo(
     () => new Set([...selected].filter((id) => config.instances.some((item) => item.id === id))),
@@ -190,6 +206,95 @@ export default function InstancesPage({
     await api.stop(id);
     notify("已关闭");
     await refresh();
+  }
+
+  async function commitVolume(instance: Instance, volume: number, muted: boolean) {
+    await onConfig({
+      ...config,
+      instances: config.instances.map((item) =>
+        item.id === instance.id ? { ...item, volume, muted } : item,
+      ),
+    });
+    try {
+      await api.applyAudio([instance.id]);
+    } catch (error) {
+      notify(String(error));
+    }
+  }
+
+  function previewVolume(instance: Instance, volume: number, muted: boolean) {
+    if (!runtimeOf(instance.id)?.running) return;
+    void api.previewAudio(instance.id, volume, muted).catch(() => undefined);
+  }
+
+  async function toggleMuteAll() {
+    const nextMuted = !allMuted;
+    await onConfig({
+      ...config,
+      instances: config.instances.map((item) => ({ ...item, muted: nextMuted })),
+    });
+    try {
+      const changed = await api.applyAudio(config.instances.map((item) => item.id));
+      notify(
+        nextMuted
+          ? `已静音全部实例${changed > 0 ? `（${changed} 个音频会话）` : ""}`
+          : "已恢复全部实例声音",
+      );
+    } catch (error) {
+      notify(String(error));
+    }
+  }
+
+  async function applyBatchVolume() {
+    const ids = [...validSelected];
+    await onConfig({
+      ...config,
+      instances: config.instances.map((item) =>
+        validSelected.has(item.id)
+          ? { ...item, volume: batchVolume, muted: batchMuted }
+          : item,
+      ),
+    });
+    try {
+      await api.applyAudio(ids);
+    } catch (error) {
+      notify(String(error));
+    }
+    setVolumeDialog(false);
+    notify(`已设置 ${ids.length} 个实例的音量`);
+  }
+
+  async function startTag(tag: string) {
+    const targets = config.instances.filter(
+      (item) => item.group.trim() === tag && !runtimeOf(item.id)?.running,
+    );
+    if (targets.length === 0) {
+      notify(`「${tag}」下没有待启动的实例`);
+      return;
+    }
+    for (const item of targets) {
+      try {
+        await api.launch(item.id);
+      } catch (error) {
+        notify(`${item.name}：${error}`);
+      }
+      await sleep(config.launchIntervalMs);
+    }
+    await refresh();
+    notify(`已启动「${tag}」的 ${targets.length} 个实例`);
+  }
+
+  async function stopTag(tag: string) {
+    const running = config.instances.filter(
+      (item) => item.group.trim() === tag && runtimeOf(item.id)?.running,
+    );
+    if (running.length === 0) {
+      notify(`「${tag}」下没有运行中的实例`);
+      return;
+    }
+    await api.stopMany(running.map((item) => item.id));
+    await refresh();
+    notify(`已关闭「${tag}」的 ${running.length} 个实例`);
   }
 
   async function startSelected() {
@@ -339,6 +444,15 @@ export default function InstancesPage({
             全部关闭
           </button>
           <button
+            className="btn ghost"
+            onClick={() => void toggleMuteAll()}
+            disabled={config.instances.length === 0}
+            title="Ctrl+Shift+M"
+          >
+            <IconVolumeOff size={14} />
+            {allMuted ? "恢复声音" : "静音全部"}
+          </button>
+          <button
             className="btn primary"
             onClick={() => void onLaunchAll()}
             disabled={launching || config.instances.length === 0}
@@ -388,6 +502,18 @@ export default function InstancesPage({
               <span className="chip-count">{tagCountFor(tag)}</span>
             </button>
           ))}
+          {activeTag && (
+            <div className="tag-actions">
+              <button className="btn small ghost" onClick={() => void startTag(activeTag)}>
+                <IconPlay size={12} />
+                启动此标签
+              </button>
+              <button className="btn small ghost" onClick={() => void stopTag(activeTag)}>
+                <IconStop size={12} />
+                关闭此标签
+              </button>
+            </div>
+          )}
         </div>
       )}
 
@@ -404,6 +530,17 @@ export default function InstancesPage({
           </button>
           <button className="btn small" onClick={() => setGroupDialog(true)}>
             设置标签
+          </button>
+          <button
+            className="btn small"
+            onClick={() => {
+              setBatchVolume(100);
+              setBatchMuted(false);
+              setVolumeDialog(true);
+            }}
+          >
+            <IconVolumeOff size={13} />
+            音量
           </button>
           <button className="btn small danger" onClick={deleteSelected}>
             <IconTrash size={13} />
@@ -536,6 +673,12 @@ export default function InstancesPage({
                 </span>
 
                 <div className="col-actions">
+                  <VolumeControl
+                    instance={instance}
+                    running={Boolean(runtime?.running)}
+                    onPreview={(volume, muted) => previewVolume(instance, volume, muted)}
+                    onCommit={(volume, muted) => void commitVolume(instance, volume, muted)}
+                  />
                   {runtime?.running ? (
                     <button className="row-action" onClick={() => void stop(instance.id)}>
                       关闭
@@ -583,6 +726,48 @@ export default function InstancesPage({
           onCancel={() => setGroupDialog(false)}
           onSubmit={applyGroup}
         />
+      )}
+
+      {volumeDialog && (
+        <Modal
+          title={`设置音量（${validSelected.size} 个实例）`}
+          onClose={() => setVolumeDialog(false)}
+          footer={
+            <>
+              <button className="btn ghost" onClick={() => setVolumeDialog(false)}>
+                取消
+              </button>
+              <button className="btn primary" onClick={() => void applyBatchVolume()}>
+                应用
+              </button>
+            </>
+          }
+        >
+          <label className="field">
+            <span>音量 {batchMuted ? "（静音）" : `${batchVolume}%`}</span>
+            <input
+              className="volume-range"
+              type="range"
+              min={0}
+              max={100}
+              step={1}
+              value={batchVolume}
+              disabled={batchMuted}
+              onChange={(event) => setBatchVolume(Number(event.target.value))}
+            />
+          </label>
+          <label className="check-field">
+            <input
+              type="checkbox"
+              checked={batchMuted}
+              onChange={(event) => setBatchMuted(event.target.checked)}
+            />
+            <span>
+              静音
+              <small>只改变静音开关，保留每个实例已有的音量数值。</small>
+            </span>
+          </label>
+        </Modal>
       )}
 
       {menu && (

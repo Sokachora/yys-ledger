@@ -180,6 +180,21 @@ export default function App() {
     };
   }, [refreshNow]);
 
+  const toggleMuteAll = useCallback(async () => {
+    if (!config || config.instances.length === 0) return;
+    const nextMuted = !config.instances.every((item) => item.muted);
+    await applyConfig({
+      ...config,
+      instances: config.instances.map((item) => ({ ...item, muted: nextMuted })),
+    });
+    try {
+      await api.applyAudio(config.instances.map((item) => item.id));
+    } catch (error) {
+      setError(String(error));
+    }
+    notify(nextMuted ? "已静音全部实例" : "已恢复全部实例声音");
+  }, [applyConfig, config, notify]);
+
   // 快捷键
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -191,7 +206,10 @@ export default function App() {
       if (document.querySelector(".modal-mask")) return;
       if (!(event.ctrlKey || event.metaKey)) return;
       const key = event.key.toLowerCase();
-      if (key === "n") {
+      if (event.shiftKey && key === "m") {
+        event.preventDefault();
+        void toggleMuteAll();
+      } else if (key === "n") {
         event.preventDefault();
         setPage("instances");
         setCreateSignal((value) => value + 1);
@@ -203,7 +221,7 @@ export default function App() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [refreshNow]);
+  }, [refreshNow, toggleMuteAll]);
 
   const changeTheme = useCallback(
     (mode: ThemeMode) => {
@@ -488,6 +506,8 @@ function BatchCreateDialog({
       note: "",
       args: [],
       autoRestart: false,
+      volume: 100,
+      muted: false,
     }));
     onConfirm(instances);
   }

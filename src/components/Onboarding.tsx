@@ -83,6 +83,8 @@ export default function Onboarding({ config, onCancel, onFinish }: Props) {
       note: "",
       args: [],
       autoRestart: false,
+      volume: 100,
+      muted: false,
     }));
     void onFinish({
       ...config,

@@ -1,3 +1,4 @@
+mod audio;
 mod config;
 mod detect;
 mod logs;
@@ -42,6 +43,8 @@ struct AppState {
     seen: Mutex<HashSet<String>>,
     restart: Mutex<HashMap<String, RestartPlan>>,
     cancel: Mutex<HashMap<String, Arc<AtomicBool>>>,
+    /// 已经套用过音量的实例 → 当前 PID，避免每次轮询重复设置。
+    audio_applied: Mutex<HashMap<String, u32>>,
 }
 
 #[derive(Serialize)]
@@ -188,6 +191,66 @@ async fn find_client_roots() -> Vec<detect::Candidate> {
         .unwrap_or_default()
 }
 
+
+fn apply_audio_pid(
+    state: &AppState,
+    proc_list: &[procs::ProcInfo],
+    id: &str,
+    pid: u32,
+    volume: u32,
+    muted: bool,
+) -> Result<usize, String> {
+    let tree: HashSet<u32> = procs::tree_pids(proc_list, pid).into_iter().collect();
+    let changed = audio::set_volume(&tree, volume as f32 / 100.0, muted)?;
+    let mut applied = state.audio_applied.lock().unwrap();
+    if changed > 0 {
+        applied.insert(id.to_string(), pid);
+    } else {
+        // 音频会话可能还没创建，后台监控会继续重试。
+        applied.remove(id);
+    }
+    Ok(changed)
+}
+
+#[tauri::command]
+fn apply_audio(ids: Vec<String>, state: State<'_, AppState>) -> Result<usize, String> {
+    let cfg = state.config.lock().unwrap().clone();
+    let proc_list = procs::snapshot();
+    let mut total = 0;
+    for id in ids {
+        let Some(instance) = cfg.instances.iter().find(|item| item.id == id) else {
+            continue;
+        };
+        let Some(entry) = state.pids.lock().unwrap().get(&id).copied() else {
+            continue;
+        };
+        total += apply_audio_pid(
+            &state,
+            &proc_list,
+            &id,
+            entry.pid,
+            instance.volume,
+            instance.muted,
+        )?;
+    }
+    Ok(total)
+}
+
+/// 拖动音量滑杆时先作用于当前进程，松手后再写入配置。
+#[tauri::command]
+fn preview_audio(
+    id: String,
+    volume: u32,
+    muted: bool,
+    state: State<'_, AppState>,
+) -> Result<usize, String> {
+    let Some(entry) = state.pids.lock().unwrap().get(&id).copied() else {
+        return Ok(0);
+    };
+    let proc_list = procs::snapshot();
+    apply_audio_pid(&state, &proc_list, &id, entry.pid, volume, muted)
+}
+
 // ---------------- 实例 ----------------
 
 #[tauri::command]
@@ -264,6 +327,7 @@ fn launch_instance(app: AppHandle, id: String, state: State<'_, AppState>) -> Re
         .insert(id.clone(), PidEntry { pid, started_at });
     state.seen.lock().unwrap().insert(id.clone());
     state.restart.lock().unwrap().remove(&id);
+    state.audio_applied.lock().unwrap().remove(&id);
     persist_pids(&state);
     refresh_tray(&app);
     logs::info(&format!("启动实例 {id}，PID {pid}"));
@@ -278,6 +342,7 @@ fn stop_instance(app: AppHandle, id: String, state: State<'_, AppState>) {
     // 手动关闭的实例不参与自动重启
     state.seen.lock().unwrap().remove(&id);
     state.restart.lock().unwrap().remove(&id);
+    state.audio_applied.lock().unwrap().remove(&id);
     persist_pids(&state);
     refresh_tray(&app);
 }
@@ -290,6 +355,7 @@ fn stop_instances(app: AppHandle, ids: Vec<String>, state: State<'_, AppState>) 
         }
         state.seen.lock().unwrap().remove(id);
         state.restart.lock().unwrap().remove(id);
+        state.audio_applied.lock().unwrap().remove(id);
     }
     persist_pids(&state);
     refresh_tray(&app);
@@ -306,6 +372,7 @@ fn stop_all(app: AppHandle, state: State<'_, AppState>) {
     }
     state.seen.lock().unwrap().clear();
     state.restart.lock().unwrap().clear();
+    state.audio_applied.lock().unwrap().clear();
     persist_pids(&state);
     refresh_tray(&app);
 }
@@ -710,6 +777,9 @@ fn monitor_tick(app: &AppHandle) {
         dead
     };
     if !died.is_empty() {
+        for id in &died {
+            state.audio_applied.lock().unwrap().remove(id);
+        }
         persist_pids(&state);
         refresh_tray(app);
     }
@@ -750,6 +820,27 @@ fn monitor_tick(app: &AppHandle) {
         );
     }
 
+    // 音频会话通常在窗口出现后才创建，这里持续补套用，直到匹配到会话。
+    {
+        let running: Vec<(String, u32)> = state
+            .pids
+            .lock()
+            .unwrap()
+            .iter()
+            .map(|(id, entry)| (id.clone(), entry.pid))
+            .collect();
+        for (id, pid) in running {
+            let applied = state.audio_applied.lock().unwrap().get(&id).copied();
+            if applied == Some(pid) {
+                continue;
+            }
+            let Some(instance) = cfg.instances.iter().find(|item| item.id == id) else {
+                continue;
+            };
+            let _ = apply_audio_pid(&state, &proc_list, &id, pid, instance.volume, instance.muted);
+        }
+    }
+
     let due: Vec<String> = {
         let restart = state.restart.lock().unwrap();
         restart
@@ -777,6 +868,7 @@ fn monitor_tick(app: &AppHandle) {
                     .insert(id.clone(), PidEntry { pid, started_at });
                 state.seen.lock().unwrap().insert(id.clone());
                 state.restart.lock().unwrap().remove(&id);
+                state.audio_applied.lock().unwrap().remove(&id);
                 persist_pids(&state);
                 refresh_tray(app);
                 logs::info(&format!("实例 {} 已自动重启，PID {}", instance.name, pid));
@@ -896,6 +988,7 @@ pub fn run() {
             seen: Mutex::new(initial_seen),
             restart: Mutex::new(HashMap::new()),
             cancel: Mutex::new(HashMap::new()),
+            audio_applied: Mutex::new(HashMap::new()),
         })
         .invoke_handler(tauri::generate_handler![
             get_config,
@@ -905,6 +998,8 @@ pub fn run() {
             find_client_roots,
             refresh_instances,
             launch_instance,
+            apply_audio,
+            preview_audio,
             stop_instance,
             stop_instances,
             stop_all,

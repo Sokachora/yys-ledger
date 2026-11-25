@@ -20,6 +20,9 @@ export const api = {
   setIconTheme: (theme: "light" | "dark") => invoke<void>("set_icon_theme", { theme }),
   refresh: () => invoke<RuntimeSnapshot>("refresh_instances"),
   launch: (id: string) => invoke<number>("launch_instance", { id }),
+  applyAudio: (ids: string[]) => invoke<number>("apply_audio", { ids }),
+  previewAudio: (id: string, volume: number, muted: boolean) =>
+    invoke<number>("preview_audio", { id, volume, muted }),
   stop: (id: string) => invoke<void>("stop_instance", { id }),
   stopMany: (ids: string[]) => invoke<void>("stop_instances", { ids }),
   stopAll: () => invoke<void>("stop_all"),
