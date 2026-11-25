@@ -100,6 +100,7 @@ export interface InstanceRuntime {
   hwnd: number | null;
   memoryMb: number;
   responding: boolean;
+  visible: boolean;
   rect: WinRect | null;
 }
 

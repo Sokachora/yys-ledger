@@ -27,6 +27,8 @@ export const api = {
   stopMany: (ids: string[]) => invoke<void>("stop_instances", { ids }),
   stopAll: () => invoke<void>("stop_all"),
   adopt: () => invoke<number>("adopt_external"),
+  setWindowVisible: (ids: string[], visible: boolean) =>
+    invoke<number>("set_window_visible", { ids, visible }),
   focus: (id: string) => invoke<void>("focus_window", { id }),
   tile: () => invoke<void>("tile_windows"),
   openGameDir: () => invoke<void>("open_game_dir"),

@@ -8,7 +8,7 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
     IsHungAppWindow, IsWindowVisible, SetForegroundWindow, SetWindowPos, ShowWindow,
     SystemParametersInfoW, SM_CXSCREEN, SM_CXVIRTUALSCREEN, SM_CYSCREEN, SM_CYVIRTUALSCREEN,
     SM_XVIRTUALSCREEN, SM_YVIRTUALSCREEN, SPI_GETWORKAREA, SWP_NOZORDER, SWP_SHOWWINDOW,
-    SW_RESTORE,
+    SW_HIDE, SW_RESTORE, SW_SHOW,
 };
 
 #[derive(Clone, Copy, Debug, Serialize)]
@@ -19,6 +19,7 @@ pub struct WinRect {
     pub h: i32,
 }
 
+/// 找到实例的主窗口；优先可见窗口，窗口被隐藏时仍返回句柄，便于恢复。
 pub fn find_window(pid: u32) -> Option<HWND> {
     struct Search {
         pid: u32,
@@ -31,14 +32,21 @@ pub fn find_window(pid: u32) -> Option<HWND> {
         unsafe {
             GetWindowThreadProcessId(hwnd, &mut window_pid);
         }
-        if window_pid == search.pid && unsafe { IsWindowVisible(hwnd) } != 0 {
-            let mut buffer = [0u16; 256];
-            let len = unsafe { GetWindowTextW(hwnd, buffer.as_mut_ptr(), buffer.len() as i32) };
-            let title = String::from_utf16_lossy(&buffer[..len.max(0) as usize]);
-            if title.contains("阴阳师") {
-                search.found = hwnd;
-                return 0;
-            }
+        if window_pid != search.pid {
+            return 1;
+        }
+        let mut buffer = [0u16; 256];
+        let len = unsafe { GetWindowTextW(hwnd, buffer.as_mut_ptr(), buffer.len() as i32) };
+        let title = String::from_utf16_lossy(&buffer[..len.max(0) as usize]);
+        if !title.contains("阴阳师") {
+            return 1;
+        }
+        if unsafe { IsWindowVisible(hwnd) } != 0 {
+            search.found = hwnd;
+            return 0;
+        }
+        if search.found.is_null() {
+            search.found = hwnd;
         }
         1
     }
@@ -74,6 +82,16 @@ pub fn window_rect(hwnd: HWND) -> Option<WinRect> {
 
 pub fn is_hung(hwnd: HWND) -> bool {
     unsafe { IsHungAppWindow(hwnd) != 0 }
+}
+
+pub fn is_visible(hwnd: HWND) -> bool {
+    unsafe { IsWindowVisible(hwnd) != 0 }
+}
+
+pub fn set_visible(hwnd: HWND, visible: bool) {
+    unsafe {
+        ShowWindow(hwnd, if visible { SW_SHOW } else { SW_HIDE });
+    }
 }
 
 pub fn focus(hwnd: HWND) {

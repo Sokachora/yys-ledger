@@ -5,7 +5,11 @@ import Modal from "../components/Modal";
 import Truncate from "../components/Truncate";
 import VolumeControl from "../components/VolumeControl";
 import {
+  IconEye,
+  IconEyeOff,
+  IconFocus,
   IconGrid,
+  IconMore,
   IconPlay,
   IconPlus,
   IconSearch,
@@ -94,6 +98,13 @@ export default function InstancesPage({
     [config.instances, selected],
   );
 
+  const runningRuntimes = snapshot?.instances.filter((item) => item.running) ?? [];
+  const allWindowsHidden =
+    runningRuntimes.length > 0 && runningRuntimes.every((item) => !item.visible);
+  const selectedRuntimes = runningRuntimes.filter((item) => validSelected.has(item.id));
+  const selectedAllHidden =
+    selectedRuntimes.length > 0 && selectedRuntimes.every((item) => !item.visible);
+
   const tags = useMemo(
     () =>
       Array.from(
@@ -146,7 +157,9 @@ export default function InstancesPage({
   }
 
   function menuItems(instance: Instance): MenuAction[] {
-    const running = runtimeOf(instance.id)?.running;
+    const runtime = runtimeOf(instance.id);
+    const running = runtime?.running;
+    const hidden = Boolean(running && runtime && !runtime.visible);
     return [
       running
         ? { label: "关闭", onSelect: () => void stop(instance.id) }
@@ -155,6 +168,11 @@ export default function InstancesPage({
         label: "聚焦窗口",
         disabled: !running,
         onSelect: () => void api.focus(instance.id),
+      },
+      {
+        label: hidden ? "显示窗口" : "隐藏窗口",
+        disabled: !running,
+        onSelect: () => void toggleVisible(instance),
       },
       { label: "编辑", onSelect: () => openEdit(instance) },
       {
@@ -206,6 +224,48 @@ export default function InstancesPage({
     await api.stop(id);
     notify("已关闭");
     await refresh();
+  }
+
+  async function toggleVisible(instance: Instance) {
+    const runtime = runtimeOf(instance.id);
+    if (!runtime?.running) return;
+    try {
+      await api.setWindowVisible([instance.id], !runtime.visible);
+      await refresh();
+    } catch (error) {
+      notify(String(error));
+    }
+  }
+
+  async function toggleAllVisible() {
+    const ids = runningRuntimes.map((item) => item.id);
+    if (ids.length === 0) return;
+    try {
+      const changed = await api.setWindowVisible(ids, allWindowsHidden);
+      await refresh();
+      notify(
+        allWindowsHidden ? `已显示 ${changed} 个窗口` : `已隐藏 ${changed} 个窗口`,
+      );
+    } catch (error) {
+      notify(String(error));
+    }
+  }
+
+  async function toggleSelectedVisible() {
+    const ids = selectedRuntimes.map((item) => item.id);
+    if (ids.length === 0) {
+      notify("选中的实例都没有运行");
+      return;
+    }
+    try {
+      const changed = await api.setWindowVisible(ids, selectedAllHidden);
+      await refresh();
+      notify(
+        selectedAllHidden ? `已显示 ${changed} 个窗口` : `已隐藏 ${changed} 个窗口`,
+      );
+    } catch (error) {
+      notify(String(error));
+    }
   }
 
   async function commitVolume(instance: Instance, volume: number, muted: boolean) {
@@ -428,29 +488,40 @@ export default function InstancesPage({
             批量创建
           </button>
           <button
-            className="btn ghost"
+            className="btn ghost icon-only"
             onClick={() => void onTile()}
             disabled={runningCount === 0}
+            title="整理窗口"
+            aria-label="整理窗口"
           >
-            <IconGrid size={14} />
-            整理窗口
+            <IconGrid size={15} />
           </button>
           <button
-            className="btn ghost"
+            className="btn ghost icon-only"
             onClick={() => void onStopAll()}
             disabled={runningCount === 0}
+            title="全部关闭"
+            aria-label="全部关闭"
           >
-            <IconStop size={14} />
-            全部关闭
+            <IconStop size={15} />
           </button>
           <button
-            className="btn ghost"
+            className="btn ghost icon-only"
             onClick={() => void toggleMuteAll()}
             disabled={config.instances.length === 0}
             title="Ctrl+Shift+M"
+            aria-label={allMuted ? "恢复声音" : "静音全部"}
           >
-            <IconVolumeOff size={14} />
-            {allMuted ? "恢复声音" : "静音全部"}
+            <IconVolumeOff size={15} />
+          </button>
+          <button
+            className="btn ghost icon-only"
+            onClick={() => void toggleAllVisible()}
+            disabled={runningCount === 0}
+            title={allWindowsHidden ? "显示全部窗口" : "隐藏全部窗口"}
+            aria-label={allWindowsHidden ? "显示全部窗口" : "隐藏全部窗口"}
+          >
+            {allWindowsHidden ? <IconEye size={15} /> : <IconEyeOff size={15} />}
           </button>
           <button
             className="btn primary"
@@ -528,6 +599,14 @@ export default function InstancesPage({
             <IconStop size={13} />
             关闭选中
           </button>
+          <button
+            className="btn small"
+            onClick={() => void toggleSelectedVisible()}
+            disabled={selectedRuntimes.length === 0}
+          >
+            {selectedAllHidden ? <IconEye size={13} /> : <IconEyeOff size={13} />}
+            {selectedAllHidden ? "显示选中" : "隐藏选中"}
+          </button>
           <button className="btn small" onClick={() => setGroupDialog(true)}>
             设置标签
           </button>
@@ -595,6 +674,7 @@ export default function InstancesPage({
             <span className="col-name">名册</span>
             <span className="col-group">标签</span>
             <span className="col-status">状态</span>
+            <span className="col-volume">音量</span>
             <span className="col-mem">内存</span>
             <span className="col-actions head-actions">操作</span>
           </div>
@@ -602,14 +682,23 @@ export default function InstancesPage({
           {filtered.map((instance, index) => {
             const runtime = runtimeOf(instance.id);
             const checked = validSelected.has(instance.id);
+            const hidden = Boolean(runtime?.running && !runtime.visible);
             const state = !runtime?.running
               ? "idle"
-              : runtime.responding
-                ? "run"
-                : "hung";
+              : hidden
+                ? "hidden"
+                : runtime.responding
+                  ? "run"
+                  : "hung";
             const stateText =
-              state === "run" ? "运行中" : state === "hung" ? "无响应" : "未启动";
-            const sealChar = state === "run" ? "运" : state === "hung" ? "滞" : "止";
+              state === "run"
+                ? "运行中"
+                : state === "hung"
+                  ? "无响应"
+                  : state === "hidden"
+                    ? "已隐藏"
+                    : "未启动";
+            const sealChar = state === "run" ? "运" : state === "hung" ? "滞" : state === "hidden" ? "隐" : "止";
             const meta = [
               runtime?.running ? `PID ${runtime.pid}` : "",
               instance.note.trim(),
@@ -668,41 +757,67 @@ export default function InstancesPage({
                   <span className="status-text">{stateText}</span>
                 </span>
 
-                <span className="col-mem">
-                  {runtime?.running ? `${runtime.memoryMb.toFixed(0)} MB` : "—"}
-                </span>
-
-                <div className="col-actions">
+                <div className="col-volume">
                   <VolumeControl
                     instance={instance}
                     running={Boolean(runtime?.running)}
                     onPreview={(volume, muted) => previewVolume(instance, volume, muted)}
                     onCommit={(volume, muted) => void commitVolume(instance, volume, muted)}
                   />
+                </div>
+
+                <span className="col-mem">
+                  {runtime?.running ? `${runtime.memoryMb.toFixed(0)} MB` : "—"}
+                </span>
+
+                <div className="col-actions">
                   {runtime?.running ? (
-                    <button className="row-action" onClick={() => void stop(instance.id)}>
-                      关闭
+                    <button
+                      className="row-icon"
+                      title="关闭"
+                      aria-label={`关闭 ${instance.name}`}
+                      onClick={() => void stop(instance.id)}
+                    >
+                      <IconStop size={13} />
                     </button>
                   ) : (
                     <button
-                      className="row-action primary-text"
+                      className="row-icon primary-text"
+                      title="启动"
+                      aria-label={`启动 ${instance.name}`}
                       onClick={() => void launch(instance.id)}
                     >
-                      启动
+                      <IconPlay size={13} />
                     </button>
                   )}
                   <button
-                    className="row-action"
+                    className="row-icon"
+                    title="聚焦窗口"
+                    aria-label={`聚焦 ${instance.name}`}
                     disabled={!runtime?.running}
                     onClick={() => void api.focus(instance.id)}
                   >
-                    聚焦
+                    <IconFocus size={13} />
                   </button>
-                  <button className="row-action" onClick={() => openEdit(instance)}>
-                    编辑
+                  <button
+                    className="row-icon"
+                    title={hidden ? "显示窗口" : "隐藏窗口"}
+                    aria-label={`${hidden ? "显示" : "隐藏"} ${instance.name}`}
+                    disabled={!runtime?.running}
+                    onClick={() => void toggleVisible(instance)}
+                  >
+                    {hidden ? <IconEye size={13} /> : <IconEyeOff size={13} />}
                   </button>
-                  <button className="row-action danger" onClick={() => remove(instance)}>
-                    移除
+                  <button
+                    className="row-icon"
+                    title="更多操作"
+                    aria-label={`${instance.name} 的更多操作`}
+                    onClick={(event) => {
+                      const rect = event.currentTarget.getBoundingClientRect();
+                      setMenu({ x: rect.left, y: rect.bottom + 4, instance });
+                    }}
+                  >
+                    <IconMore size={14} />
                   </button>
                 </div>
               </div>

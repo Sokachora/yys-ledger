@@ -66,6 +66,7 @@ struct InstanceRuntime {
     hwnd: Option<i64>,
     memory_mb: f64,
     responding: bool,
+    visible: bool,
     rect: Option<win32::WinRect>,
 }
 
@@ -269,21 +270,22 @@ fn refresh_instances(state: State<'_, AppState>) -> RuntimeSnapshot {
                 .copied()
                 .filter(|entry| procs::alive(&proc_list, entry.pid));
 
-            let (hwnd, memory_mb, responding, rect) = match entry {
+            let (hwnd, memory_mb, responding, visible, rect) = match entry {
                 Some(entry) => {
                     let hwnd = win32::find_window(entry.pid);
                     let memory = procs::tree_working_set(&proc_list, entry.pid) as f64 / 1024.0 / 1024.0;
                     let responding = hwnd.is_some_and(|handle| !win32::is_hung(handle));
+                    let visible = hwnd.is_some_and(win32::is_visible);
                     (
                         hwnd.map(|handle| handle as i64),
                         memory,
                         responding,
+                        visible,
                         hwnd.and_then(win32::window_rect),
                     )
                 }
-                None => (None, 0.0, false, None),
+                None => (None, 0.0, false, false, None),
             };
-
             instances.push(InstanceRuntime {
                 id: instance.id.clone(),
                 pid: entry.map(|entry| entry.pid),
@@ -291,6 +293,7 @@ fn refresh_instances(state: State<'_, AppState>) -> RuntimeSnapshot {
                 hwnd,
                 memory_mb: (memory_mb * 10.0).round() / 10.0,
                 responding,
+                visible,
                 rect,
             });
         }
@@ -416,6 +419,21 @@ fn adopt_external(app: AppHandle, state: State<'_, AppState>) -> Result<usize, S
         logs::info(&format!("接管 {adopted} 个外部启动的游戏进程"));
     }
     Ok(adopted)
+}
+
+#[tauri::command]
+fn set_window_visible(ids: Vec<String>, visible: bool, state: State<'_, AppState>) -> usize {
+    let pids = state.pids.lock().unwrap().clone();
+    let mut changed = 0;
+    for id in ids {
+        if let Some(entry) = pids.get(&id) {
+            if let Some(hwnd) = win32::find_window(entry.pid) {
+                win32::set_visible(hwnd, visible);
+                changed += 1;
+            }
+        }
+    }
+    changed
 }
 
 #[tauri::command]
@@ -1004,6 +1022,7 @@ pub fn run() {
             stop_instances,
             stop_all,
             adopt_external,
+            set_window_visible,
             focus_window,
             tile_windows,
             open_game_dir,
