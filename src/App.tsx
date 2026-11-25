@@ -27,7 +27,7 @@ export default function App() {
   const [batchOpen, setBatchOpen] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
   const [onboarding, setOnboarding] = useState(false);
-  const [version, setVersion] = useState("0.1.0");
+  const [version, setVersion] = useState("0.1.1");
   const [createSignal, setCreateSignal] = useState(0);
   const [themeMode, setThemeMode] = useState<ThemeMode>(() => {
     const stored = window.localStorage.getItem("yys-theme");

@@ -19,8 +19,8 @@
 ## 下载
 
 - 最新版本：[Releases](../../releases/latest)
-- 安装版 `yys-ledger-0.1.0-setup.exe`：默认装到 `%LOCALAPPDATA%\yys-ledger`，缺少 WebView2 时自动下载运行时
-- 便携版 `yys-ledger-0.1.0-portable.zip`：解压即用，配置与日志都在程序目录的 `data/`
+- 安装版 `yys-ledger-0.1.1-setup.exe`：默认装到 `%LOCALAPPDATA%\yys-ledger`，缺少 WebView2 时自动下载运行时
+- 便携版 `yys-ledger-0.1.1-portable.zip`：解压即用，配置与日志都在程序目录的 `data/`
 
 ## 功能
 
@@ -140,8 +140,8 @@ npm run tauri build               # 安装包
 python scripts/package-portable.py  # 便携版（需先构建 release）
 ```
 
-- 安装包：`src-tauri/target/release/bundle/nsis/yys-ledger_0.1.0_x64-setup.exe`（默认装到 `%LOCALAPPDATA%\yys-ledger`）
-- 便携版：`release/yys-ledger/`，以及 `yys-ledger-0.1.0-portable.zip`（解压得到同名目录）
+- 安装包：`src-tauri/target/release/bundle/nsis/yys-ledger_0.1.1_x64-setup.exe`（默认装到 `%LOCALAPPDATA%\yys-ledger`）
+- 便携版：`release/yys-ledger/`，以及 `yys-ledger-0.1.1-portable.zip`（解压得到同名目录）
 
 便携模式的判定：exe 同目录存在 `data` 文件夹或 `yys-ledger.portable` 标记文件时，配置、日志、PID、窗口状态全部写到 `data` 下；否则使用 `%APPDATA%\yys-ledger`。拷贝整个文件夹即可保留全部设置。
 

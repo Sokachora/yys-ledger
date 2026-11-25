@@ -1,6 +1,6 @@
 [package]
 name = "yys-ledger"
-version = "0.1.0"
+version = "0.1.1"
 description = "百鬼帐 · 阴阳师桌面名册"
 authors = ["yys"]
 edition = "2024"
